@@ -1,1 +1,5 @@
 scholarly
+fire
+python-dotenv
+free-proxy
+ipython
