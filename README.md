@@ -45,3 +45,8 @@ Search for the paper title in Chrome directly in Google Scholar: `gs` search eng
 Save the file locally and then process it with the script:
 
         py main.py read-html "<PATH_TO_FILE.html>"
+
+Example
+---
+
+![Trello Board](./images/example-trello.png)
