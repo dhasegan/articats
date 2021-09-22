@@ -64,12 +64,19 @@ def _get_card_name(pub):
 
 
 def _process_html_result(res):
-  title = res.find(class_='gs_rt').a.text
+  title = res.find(class_='gs_rt').a
+  if not title:
+    return None
+  title = title.text
   metadata = res.find(class_='gs_a')
   author = [aut.text for aut in metadata.find_all('a') if 'sra' in aut.attrs['href']]
   toks = metadata.text.split('-')[-2].split(',')
   venue = ','.join(toks[:-1]).strip()
-  pub_year = int(toks[-1])
+  try:
+    pub_year = int(toks[-1])
+  except Exception as err:
+    print('Cannot parse pub_year "{}"'.format(toks[-1]))
+    pub_year = 0
   abstract = res.find(class_='gs_rs').text
   pub_url = res.find(class_='gs_rt').a.attrs['href']
   if res.find(class_='gs_ggs'):
@@ -186,6 +193,7 @@ def read_html(html_filename):
   gs_results_section = gs_results_section[0]
   results = gs_results_section.find_all(class_='gs_scl')
   found_pubs = [_process_html_result(res) for res in results]
+  found_pubs = [p for p in found_pubs if p]
   query_name = html_filename.split('/')[-1].split('- Google Scholar')[0]
   pick_and_send(found_pubs, query_name)
 
