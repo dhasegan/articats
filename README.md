@@ -24,6 +24,19 @@ Set env in `.env`:
 
     BOARD_ID=60bfac13cbcf346200b1f259
     curl "https://api.trello.com/1/boards/${BOARD_ID}/lists?key=${TRELLO_APIKEY}&token=${TRELLO_TOKEN}"
+    curl "https://api.trello.com/1/boards/${BOARD_ID}/cards?key=${TRELLO_APIKEY}&token=${TRELLO_TOKEN}"
+    curl "https://api.trello.com/1/boards/${BOARD_ID}/plugins?key=${TRELLO_APIKEY}&token=${TRELLO_TOKEN}"
+
+    LIST_ID=60bfb3a904f57b2d47419510
+    curl "https://api.trello.com/1/lists/${LIST_ID}/cards?key=${TRELLO_APIKEY}&token=${TRELLO_TOKEN}"
+
+
+    CARD_ID=619b3fef5728a36536de7d27
+    curl --request GET \
+        --url 'https://api.trello.com/1/cards/${CARD_ID}/customFieldItems?key=${TRELLO_APIKEY}&token=${TRELLO_TOKEN}'
+
+    curl "https://api.trello.com/1/cards/${CARD_ID}?key=${TRELLO_APIKEY}&token=${TRELLO_TOKEN}"
+
 
 Process
 ---

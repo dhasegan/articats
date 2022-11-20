@@ -4,6 +4,7 @@ import json
 
 TRELLO_CARDS_URL = "https://api.trello.com/1/cards"
 TRELLO_LIST_CARDS = "https://api.trello.com/1/lists/{}/cards"
+TRELLO_BOARD_CARDS = "https://api.trello.com/1/boards/{}/cards"
 TRELLO_CARD_URL = "https://api.trello.com/1/cards/{}"
 SCIENCE_UNCLASSIFIED_LIST_ID="60bfac22fe5ed340bd3313a1"
 SCIENCE_TOPROCESS_LIST_ID="60c29a44027c005dd4d6c797"
