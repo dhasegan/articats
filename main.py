@@ -130,7 +130,7 @@ def search_gs(article_name, run_proxy=False, results_dir='results/'):
 
   print('Searching...')
   found_pubs = []
-  query_fname = os.path.join(results_dir, f'query_{article_name}.json')
+  query_fname = os.path.join(results_dir, 'query_{}.json'.format(article_name.replace('/', '_')))
   if os.path.isfile(query_fname):
     print('  ..loading all from file')
     with open(query_fname, 'r') as f:
@@ -155,7 +155,7 @@ def search_gs(article_name, run_proxy=False, results_dir='results/'):
 
   pick_and_send(found_pubs, article_name)
 
-def search_next_trello(fname='gs_log.txt', force=False):
+def search_next_trello(fname='gs_log.txt', force=False, run_proxy=False):
   last_time = None
   with open(fname) as f:
     last_time = datetime.fromtimestamp(float(f.read()))
@@ -173,7 +173,7 @@ def search_next_trello(fname='gs_log.txt', force=False):
   if len(cards) > 0:
     card = cards[0]
     print('Processing {}'.format(card['name']))
-    search_gs(card['name'])
+    search_gs(card['name'], run_proxy=run_proxy)
     with open(fname, 'w') as out:
       out.write(str(datetime.now().timestamp()))
     archive_card(card['id'])
