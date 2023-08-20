@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta
 
 from scholarly import scholarly, ProxyGenerator
+from serpapi import GoogleSearch
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
@@ -117,6 +118,35 @@ def pick_and_send(found_pubs, article_name):
   create_card(SCIENCE_UNCLASSIFIED_LIST_ID, details)
   print('done!')
 
+def _query_serp_and_parse(article_name):
+  params = {
+    "engine": "google_scholar",
+    "q": article_name,
+    "hl": "en",
+    "api_key": os.environ['SERP_API_KEY']
+  }
+
+  search = GoogleSearch(params)
+  results = search.get_dict()
+  pubs = []
+  for res in results['organic_results']:
+    journal_year = res['publication_info']['summary'].split('-')[1].strip()
+    journal = ' '.join(journal_year.split(' ')[:-1])
+    if journal[-1] == ',':
+      journal = journal[:-1]
+    pub_year = journal_year.split(' ')[-1]
+    authors = res['publication_info']['summary'].split('-')[0].strip()
+    pubs.append({
+      'bib': {
+        'title': res['title'],
+        'pub_year': pub_year,
+        'author': authors,
+        'venue': journal,
+        'abstract': res['snippet'],
+      },
+      'pub_url': res['link']
+    })
+  return pubs
 
 def search_gs(article_name, run_proxy=False, results_dir='results/'):
   if run_proxy:
@@ -149,7 +179,8 @@ def search_gs(article_name, run_proxy=False, results_dir='results/'):
       print("https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q={}&btnG=".format(
         article_name.replace(' ', '+')))
     if not found_pubs:
-      raise Exception('Failed to find article with name')
+      print('Failed to find article with name... trying serp now')
+      found_pubs = _query_serp_and_parse(article_name)
     with open(query_fname, 'w') as fout:
       fout.write(json.dumps([_stringify(pub) for pub in found_pubs]))
 
