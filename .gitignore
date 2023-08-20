@@ -3,3 +3,5 @@ results/
 **.log
 __pycache__/
 .env
+.ipynb_checkpoints/
+gs_log.txt
