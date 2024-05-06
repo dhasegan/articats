@@ -132,7 +132,7 @@ def _query_serp_and_parse(article_name):
   for res in results['organic_results']:
     journal_year = res['publication_info']['summary'].split('-')[1].strip()
     journal = ' '.join(journal_year.split(' ')[:-1])
-    if journal[-1] == ',':
+    if journal and journal[-1] == ',':
       journal = journal[:-1]
     pub_year = journal_year.split(' ')[-1]
     authors = res['publication_info']['summary'].split('-')[0].strip()
