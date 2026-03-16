@@ -130,12 +130,25 @@ def _query_serp_and_parse(article_name):
   results = search.get_dict()
   pubs = []
   for res in results['organic_results']:
-    journal_year = res['publication_info']['summary'].split('-')[1].strip()
-    journal = ' '.join(journal_year.split(' ')[:-1])
-    if journal and journal[-1] == ',':
-      journal = journal[:-1]
-    pub_year = journal_year.split(' ')[-1]
-    authors = res['publication_info']['summary'].split('-')[0].strip()
+    # Sometimes when calling serpai, the summary is all messed up:
+    # For example
+    # "summary": "S Cole, B VoytekJournal of neurophysiology, 2019•journals.physiology.org"
+    # print(res['publication_info'])
+    if '-' in res['publication_info']['summary']:
+      # they might have changed the format so have to parse it differently
+      # this is the old version
+      authors, journal_year = res['publication_info']['summary'].split('-')
+      authors, journal_year = authors.strip(), journal_year.strip()
+      journal = ' '.join(journal_year.split(' ')[:-1])
+      if journal and journal[-1] == ',':
+        journal = journal[:-1]
+      pub_year = journal_year.split(' ')[-1]
+    summary, _ = res['publication_info']['summary'].split('•')
+    pub_year = summary.split(',')[-1].strip()
+    authors = ', '.join([author['name'] for author in res['publication_info']['authors']])
+    journal = summary.split(',')[-2]
+    for author in res['publication_info']['authors']:
+      journal = journal.replace(author['name'], '').strip()
     pubs.append({
       'bib': {
         'title': res['title'],
@@ -148,7 +161,7 @@ def _query_serp_and_parse(article_name):
     })
   return pubs
 
-def search_gs(article_name, run_proxy=False, results_dir='results/'):
+def search_gs(article_name, run_proxy=False, force_download=False, results_dir='results/'):
   if run_proxy:
     pg = ProxyGenerator()
     pg.ScraperAPI(os.environ['SCRAPPER_API'])
@@ -161,7 +174,7 @@ def search_gs(article_name, run_proxy=False, results_dir='results/'):
   print('Searching...')
   found_pubs = []
   query_fname = os.path.join(results_dir, 'query_{}.json'.format(article_name.replace('/', '_')))
-  if os.path.isfile(query_fname):
+  if os.path.isfile(query_fname) and not force_download:
     print('  ..loading all from file')
     with open(query_fname, 'r') as f:
       found_pubs = json.load(f)
@@ -186,7 +199,7 @@ def search_gs(article_name, run_proxy=False, results_dir='results/'):
 
   pick_and_send(found_pubs, article_name)
 
-def search_next_trello(fname='gs_log.txt', force=False, run_proxy=False):
+def search_next_trello(fname='gs_log.txt', force=False, force_download=False, run_proxy=False):
   last_time = None
   with open(fname) as f:
     last_time = datetime.fromtimestamp(float(f.read()))
@@ -204,7 +217,7 @@ def search_next_trello(fname='gs_log.txt', force=False, run_proxy=False):
   if len(cards) > 0:
     card = cards[0]
     print('Processing {}'.format(card['name']))
-    search_gs(card['name'], run_proxy=run_proxy)
+    search_gs(card['name'], run_proxy=run_proxy, force_download=force_download)
     with open(fname, 'w') as out:
       out.write(str(datetime.now().timestamp()))
     archive_card(card['id'])
