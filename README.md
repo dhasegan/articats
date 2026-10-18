@@ -64,3 +64,10 @@ Example
 ---
 
 ![Trello Board](./images/example-trello.png)
+
+Save all burn in head cards
+---
+
+```bash
+python trello.py export 60e6144ca01c2f60222b2586 --output=burn_in_head_cards.txt
+```
