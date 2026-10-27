@@ -12,12 +12,14 @@ from serpapi import GoogleSearch
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
-from trello import create_card, list_cards, archive_card, \
+from trello import create_card, list_cards, archive_card, update_card, \
     SCIENCE_TOPROCESS_LIST_ID, SCIENCE_UNCLASSIFIED_LIST_ID
 
 load_dotenv()
 
 YEAR_RE = re.compile(r'\b(19|20)\d{2}\b')
+# A title match above this means the hit is the searched paper
+AUTO_PICK_SCORE = 0.9
 
 
 def _user_input(text, opts):
@@ -40,6 +42,13 @@ def _sort_by_relevance(found_pubs, article_name):
         reverse=True)
 
 
+def _best_score(found_pubs, article_name):
+    return max(
+        (_similarity(article_name, p.get('bib', {}).get('title', ''))
+         for p in found_pubs),
+        default=0)
+
+
 def pick_pub(found_pubs, article_name):
     if not found_pubs:
         print('Found no publication with the name: {}'.format(article_name))
@@ -53,7 +62,7 @@ def pick_pub(found_pubs, article_name):
         return best
 
     # Auto-pick when the top hit is clearly the searched paper
-    if best_score > 0.9:
+    if best_score > AUTO_PICK_SCORE:
         print('Auto-picked best match ({:.0%} title match): {}'.format(
             best_score, best['bib'].get('title', '')))
         return best
@@ -191,11 +200,12 @@ def _stringify(pub):
 
 
 def pick_and_send(found_pubs, article_name):
+    """Returns True if a card was created."""
     print('Picking from {}...'.format(len(found_pubs)))
     pub = pick_pub(found_pubs, article_name)
     if pub is None:
         print('Nothing to send.')
-        return
+        return False
 
     details = {
         'name': _get_card_name(pub),
@@ -205,6 +215,7 @@ def pick_and_send(found_pubs, article_name):
     print('Creating card...')
     create_card(SCIENCE_UNCLASSIFIED_LIST_ID, details)
     print('done!')
+    return True
 
 
 def _serp_call(article_name, use_hl=True, no_cache=True):
@@ -317,9 +328,9 @@ def _openalex_search(article_name):
     if api_key:
         params['api_key'] = api_key
     else:
-        print('  note: no OPENALEX_API_KEY set. OpenAlex now requires a free '
-              'key (openalex.org/settings/api); running on the tiny anonymous '
-              'quota, which 409s after a few calls per day.')
+        print('  note: no OPENALEX_API_KEY set; sharing the anonymous '
+              '$0.10/day (~100 searches) budget of this IP. Get a free key '
+              'with $1/day at openalex.org/settings/api.')
     # Politeness identifier; harmless if the key is present.
     mailto = os.environ.get('OPENALEX_MAILTO')
     if mailto:
@@ -422,25 +433,15 @@ ALT_BACKENDS = {
 }
 
 
-def search_gs(
+def _search_google_scholar(
         article_name,
-        backend='serpapi',
         run_proxy=False,
         force_download=False,
         force_serp=False,
         results_dir='results/'):
-
-    # New: route to a real academic API instead of scraping Google Scholar.
-    if backend in ALT_BACKENDS:
-        print('Searching via {}...'.format(backend))
-        found_pubs = ALT_BACKENDS[backend](article_name)
-        pick_and_send(found_pubs, article_name)
-        return
-
+    """Scrape Google Scholar with scholarly, falling back to SerpAPI."""
     if force_serp:
-        found_pubs = _query_serp_and_parse(article_name)
-        pick_and_send(found_pubs, article_name)
-        return
+        return _query_serp_and_parse(article_name)
 
     if run_proxy:
         pg = ProxyGenerator()
@@ -481,12 +482,64 @@ def search_gs(
             with open(query_fname, 'w') as fout:
                 fout.write(json.dumps([_stringify(pub) for pub in found_pubs]))
 
-    pick_and_send(found_pubs, article_name)
+    return found_pubs
+
+
+def _search_auto(article_name, **gs_kwargs):
+    """Try each source in turn until one returns the searched paper.
+
+    Google Scholar (scholarly and SerpAPI alike) now often answers exact-title
+    queries with unrelated papers, so the metadata APIs go first and Google
+    Scholar is the last resort. If no source clears AUTO_PICK_SCORE, the
+    closest results are returned for a manual pick.
+    """
+    sources = [
+        ('openalex', lambda: _openalex_search(article_name)),
+        ('semanticscholar', lambda: _semanticscholar_search(article_name)),
+        ('google scholar',
+         lambda: _search_google_scholar(article_name, **gs_kwargs)),
+    ]
+    best_pubs, best_score = [], 0
+    for name, search in sources:
+        print('Searching via {}...'.format(name))
+        pubs = search()
+        score = _best_score(pubs, article_name)
+        if score > best_score:
+            best_pubs, best_score = pubs, score
+        if score > AUTO_PICK_SCORE:
+            break
+        print('  best title match only {:.0%}'.format(score))
+    return best_pubs
+
+
+def search_gs(
+        article_name,
+        backend='auto',
+        run_proxy=False,
+        force_download=False,
+        force_serp=False,
+        results_dir='results/'):
+    """Find article_name and send it to the Unclassified list.
+
+    backend: 'auto' (OpenAlex, then Semantic Scholar, then Google Scholar),
+    'openalex', 'semanticscholar' or 'serpapi' (Google Scholar only).
+    Returns True if a card was created.
+    """
+    gs_kwargs = dict(run_proxy=run_proxy, force_download=force_download,
+                     force_serp=force_serp, results_dir=results_dir)
+    if backend == 'auto':
+        found_pubs = _search_auto(article_name, **gs_kwargs)
+    elif backend in ALT_BACKENDS:
+        print('Searching via {}...'.format(backend))
+        found_pubs = ALT_BACKENDS[backend](article_name)
+    else:
+        found_pubs = _search_google_scholar(article_name, **gs_kwargs)
+    return pick_and_send(found_pubs, article_name)
 
 
 def search_next_trello(
         fname='gs_log.txt',
-        backend='serpapi',
+        backend='auto',
         force=False,
         force_download=False,
         run_proxy=False,
@@ -509,11 +562,17 @@ def search_next_trello(
     if len(cards) > 0:
         card = cards[0]
         print('Processing {}'.format(card['name']))
-        search_gs(card['name'], backend=backend, run_proxy=run_proxy,
-                  force_download=force_download, force_serp=force_serp)
+        sent = search_gs(card['name'], backend=backend, run_proxy=run_proxy,
+                         force_download=force_download, force_serp=force_serp)
         with open(fname, 'w') as out:
             out.write(str(datetime.now().timestamp()))
-        archive_card(card['id'])
+        if sent:
+            archive_card(card['id'])
+        else:
+            # Keep the card rather than losing the paper, but move it out of
+            # the way so the next run does not get stuck retrying it
+            print('Moving card to the bottom of the list to retry later')
+            update_card(card['id'], {'pos': 'bottom'})
     else:
         print('Nothing to process')
 

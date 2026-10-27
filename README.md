@@ -18,6 +18,8 @@ Set env in `.env`:
     TRELLO_TOKEN=...
     SCRAPPER_API=...
     SERP_API_KEY=...
+    OPENALEX_API_KEY=...          # optional, free: https://openalex.org/settings/api
+    SEMANTIC_SCHOLAR_API_KEY=...  # optional
 
 ### Test Trello api:
 
@@ -52,6 +54,12 @@ Two ways to move from `TO_PROCESS` to `Unclassified`:
         py main.py next-trello 
 
         py main.py next-trello --force
+
+    By default (`--backend=auto`) it searches OpenAlex, then Semantic Scholar, then
+    Google Scholar (scholarly / SerpAPI), stopping at the first exact title match.
+    Google Scholar often returns unrelated papers for exact titles, so it is only the
+    last resort. Force one source with `--backend=openalex|semanticscholar|serpapi`.
+    If nothing is found, the card stays in `TO PROCESS` and moves to the bottom.
 
 2. Download the document manually and process the HTML
 
